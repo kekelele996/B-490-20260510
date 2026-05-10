@@ -36,6 +36,9 @@
           <el-form-item label="邮箱">
             <el-input v-model="form.email" placeholder="请输入邮箱" :prefix-icon="Message" />
           </el-form-item>
+          <el-form-item label="邀请码">
+            <el-input v-model="form.inviteCode" placeholder="选填:若有邀请码请填写" :prefix-icon="Present" maxlength="20" clearable />
+          </el-form-item>
           <el-form-item>
             <el-button type="primary" class="submit-btn" @click="handleRegister" :loading="loading">立即注册</el-button>
           </el-form-item>
@@ -54,14 +57,15 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { User, Lock, Avatar, Iphone, Check, Message } from '@element-plus/icons-vue'
+import { User, Lock, Avatar, Iphone, Check, Message, Present } from '@element-plus/icons-vue'
 
 const form = ref({
   username: '',
   password: '',
   nickname: '',
   phone: '',
-  email: ''
+  email: '',
+  inviteCode: ''
 })
 const loading = ref(false)
 
