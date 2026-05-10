@@ -10,8 +10,6 @@ import com.counseling.system.dto.RegisterRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
-
 @Service
 public class UserServiceImpl extends ServiceImpl<UserRepository, User> implements IUserService {
 
@@ -20,6 +18,9 @@ public class UserServiceImpl extends ServiceImpl<UserRepository, User> implement
 
     @Autowired
     private CounselorRepository counselorRepository;
+
+    @Autowired
+    private IReferralService referralService;
 
     @Override
     public User login(LoginRequest request) {
@@ -40,6 +41,13 @@ public class UserServiceImpl extends ServiceImpl<UserRepository, User> implement
         if (baseMapper.findByUsername(request.getUsername()).isPresent()) {
             throw new RuntimeException("用户名已存在");
         }
+
+        Long inviterId = null;
+        String rawCode = request.getInviteCode();
+        if (rawCode != null && !rawCode.trim().isEmpty()) {
+            inviterId = referralService.resolveInviterByCode(rawCode.trim().toUpperCase());
+        }
+
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -49,7 +57,14 @@ public class UserServiceImpl extends ServiceImpl<UserRepository, User> implement
         user.setGender(request.getGender());
         user.setBirthday(request.getBirthday());
         user.setRole("USER");
+        user.setInviterId(inviterId);
         save(user);
+
+        referralService.generateInviteCode(user.getId());
+
+        if (inviterId != null) {
+            referralService.createReferralRecord(inviterId, user.getId());
+        }
         return user;
     }
 
