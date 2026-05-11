@@ -2,6 +2,7 @@ package com.counseling.system.service;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.counseling.system.entity.Counselor;
+import com.counseling.system.entity.InviteRecord;
 import com.counseling.system.entity.User;
 import com.counseling.system.repository.CounselorRepository;
 import com.counseling.system.repository.UserRepository;
@@ -10,6 +11,7 @@ import com.counseling.system.dto.RegisterRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
@@ -20,6 +22,9 @@ public class UserServiceImpl extends ServiceImpl<UserRepository, User> implement
 
     @Autowired
     private CounselorRepository counselorRepository;
+
+    @Autowired
+    private InviteService inviteService;
 
     @Override
     public User login(LoginRequest request) {
@@ -40,6 +45,16 @@ public class UserServiceImpl extends ServiceImpl<UserRepository, User> implement
         if (baseMapper.findByUsername(request.getUsername()).isPresent()) {
             throw new RuntimeException("用户名已存在");
         }
+
+        Long inviterId = null;
+        String normalizedInviteCode = null;
+        if (request.getInviteCode() != null && !request.getInviteCode().trim().isEmpty()) {
+            normalizedInviteCode = request.getInviteCode().trim().toUpperCase();
+            User inviter = baseMapper.findByInviteCode(normalizedInviteCode)
+                    .orElseThrow(() -> new RuntimeException("邀请码不存在"));
+            inviterId = inviter.getId();
+        }
+
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -49,8 +64,33 @@ public class UserServiceImpl extends ServiceImpl<UserRepository, User> implement
         user.setGender(request.getGender());
         user.setBirthday(request.getBirthday());
         user.setRole("USER");
+        user.setInviterId(inviterId);
+        user.setInviteCode(generateUniqueInviteCode());
         save(user);
+
+        if (inviterId != null) {
+            InviteRecord record = new InviteRecord();
+            record.setInviterId(inviterId);
+            record.setInviteeId(user.getId());
+            record.setInviteCode(normalizedInviteCode);
+            record.setStatus("PENDING");
+            record.setRebateAmount(0.0);
+            record.setCreateTime(LocalDateTime.now());
+            inviteService.save(record);
+        }
+
         return user;
+    }
+
+    private String generateUniqueInviteCode() {
+        int maxAttempts = 20;
+        for (int i = 0; i < maxAttempts; i++) {
+            String code = inviteService.generateInviteCode();
+            if (!baseMapper.findByInviteCode(code).isPresent()) {
+                return code;
+            }
+        }
+        throw new RuntimeException("生成邀请码失败,请稍后重试");
     }
 
     @Override

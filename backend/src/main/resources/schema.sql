@@ -95,3 +95,19 @@ CREATE TABLE IF NOT EXISTS transactions (
     description VARCHAR(255),
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_code VARCHAR(20) UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS inviter_id BIGINT;
+
+CREATE TABLE IF NOT EXISTS invite_records (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    inviter_id BIGINT NOT NULL,
+    invitee_id BIGINT NOT NULL,
+    invite_code VARCHAR(20) NOT NULL,
+    status VARCHAR(20) DEFAULT 'PENDING',
+    rebate_amount DOUBLE DEFAULT 0.0,
+    create_time DATETIME NOT NULL,
+    complete_time DATETIME,
+    FOREIGN KEY (inviter_id) REFERENCES users(id),
+    FOREIGN KEY (invitee_id) REFERENCES users(id)
+);

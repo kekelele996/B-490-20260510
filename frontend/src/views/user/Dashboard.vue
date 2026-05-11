@@ -28,6 +28,10 @@
           <el-icon><Wallet /></el-icon>
           <span>我的钱包</span>
         </el-menu-item>
+        <el-menu-item index="invite">
+          <el-icon><Present /></el-icon>
+          <span>我的邀请</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     
@@ -410,6 +414,111 @@
           </el-card>
         </div>
 
+        <!-- Invite Management -->
+        <div v-if="activeTab === 'invite'">
+          <el-card shadow="hover" class="section-card">
+            <template #header>
+              <div class="section-header">
+                <h3><el-icon><Present /></el-icon> 我的邀请</h3>
+              </div>
+            </template>
+
+            <el-row :gutter="20">
+              <el-col :span="10">
+                <div class="invite-card">
+                  <div class="invite-card-header">
+                    <el-icon class="invite-icon"><Present /></el-icon>
+                    <div class="invite-card-title">我的专属邀请码</div>
+                  </div>
+                  <div class="invite-code-box">
+                    <span class="invite-code-text">{{ myInviteCode || '生成中...' }}</span>
+                    <div class="invite-code-actions">
+                      <el-button type="primary" @click="copyInviteCode" :icon="DocumentCopy" size="small">复制</el-button>
+                      <el-button v-if="!myInviteCode" type="success" @click="generateInviteCode" :icon="Plus" size="small">生成</el-button>
+                    </div>
+                  </div>
+                  <el-divider />
+                  <div class="invite-tips">
+                    <h4><el-icon><InfoFilled /></el-icon> 邀请规则</h4>
+                    <p>1. 将您的专属邀请码分享给好友</p>
+                    <p>2. 好友注册时填写邀请码即可绑定关系</p>
+                    <p>3. 好友完成首次付费预约后,您将获得邀请奖励</p>
+                    <p>4. 奖励金额以系统设置为准</p>
+                  </div>
+                </div>
+              </el-col>
+
+              <el-col :span="14">
+                <div class="invite-stats">
+                  <el-row :gutter="15">
+                    <el-col :span="8">
+                      <div class="stat-item blue">
+                        <div class="stat-num">{{ myInvites.length }}</div>
+                        <div class="stat-label">总邀请人数</div>
+                      </div>
+                    </el-col>
+                    <el-col :span="8">
+                      <div class="stat-item green">
+                        <div class="stat-num">{{ completedInvites }}</div>
+                        <div class="stat-label">已完成首单</div>
+                      </div>
+                    </el-col>
+                    <el-col :span="8">
+                      <div class="stat-item orange">
+                        <div class="stat-num">¥{{ totalRebateAmount }}</div>
+                        <div class="stat-label">累计奖励</div>
+                      </div>
+                    </el-col>
+                  </el-row>
+                </div>
+
+                <div class="invite-list-box">
+                  <div class="section-header" style="margin-bottom: 15px;">
+                    <h4><el-icon><List /></el-icon> 邀请记录</h4>
+                  </div>
+                  <el-table :data="myInvites" stripe style="width: 100%">
+                    <el-table-column align="center" label="被邀请人" min-width="180">
+                      <template #default="scope">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                          <el-avatar :size="32" :src="getAvatar(scope.row.invitee?.avatar)" />
+                          <span>{{ scope.row.invitee?.nickname || scope.row.invitee?.username || '-' }}</span>
+                        </div>
+                      </template>
+                    </el-table-column>
+                    <el-table-column align="center" prop="inviteCode" label="邀请码" width="140" />
+                    <el-table-column align="center" prop="createTime" label="绑定时间" width="180">
+                      <template #default="scope">
+                        {{ formatDateTime(scope.row.createTime) }}
+                      </template>
+                    </el-table-column>
+                    <el-table-column align="center" prop="status" label="状态" width="120">
+                      <template #default="scope">
+                        <el-tag :type="scope.row.status === 'COMPLETED' ? 'success' : 'warning'" effect="plain">
+                          {{ scope.row.status === 'COMPLETED' ? '已完成' : '未完成' }}
+                        </el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column align="center" prop="rebateAmount" label="奖励金额" width="120">
+                      <template #default="scope">
+                        <span v-if="scope.row.rebateAmount" style="color: #67c23a; font-weight: bold;">
+                          +¥{{ scope.row.rebateAmount }}
+                        </span>
+                        <span v-else>-</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column align="center" prop="completeTime" label="完成时间" width="180">
+                      <template #default="scope">
+                        {{ scope.row.completeTime ? formatDateTime(scope.row.completeTime) : '-' }}
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <el-empty v-if="myInvites.length === 0" description="暂无邀请记录" style="margin-top: 30px;" />
+                </div>
+              </el-col>
+            </el-row>
+          </el-card>
+        </div>
+
 
 
       </el-main>
@@ -629,7 +738,7 @@ import {
   List, Edit, Promotion, Star, View, CircleClose, 
   ChatDotRound, Wallet, Check, Warning, ChatLineRound, Position,
   Camera, Postcard, Phone, Message, Male, Right, Monitor,
-  Bell, InfoFilled
+  Bell, InfoFilled, Present, DocumentCopy, Plus
 } from '@element-plus/icons-vue'
 
 import { getAvatar } from '../../utils/avatar'
@@ -680,6 +789,52 @@ const topUpDialogVisible = ref(false)
 const topUpAmount = ref(100)
 const topUpLoading = ref(false)
 const transactions = ref([])
+
+// Invite
+const myInviteCode = ref('')
+const myInvites = ref([])
+const completedInvites = computed(() => myInvites.value.filter(i => i.status === 'COMPLETED').length)
+const totalRebateAmount = computed(() => myInvites.value.reduce((sum, i) => sum + (i.rebateAmount || 0), 0))
+
+const loadMyInviteInfo = async () => {
+  try {
+    const codeRes = await axios.get('/api/invite/my-code')
+    if (codeRes.data.code === 200) {
+      myInviteCode.value = codeRes.data.data
+    }
+    const listRes = await axios.get('/api/invite/my-invites')
+    if (listRes.data.code === 200) {
+      myInvites.value = listRes.data.data || []
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+const copyInviteCode = async () => {
+  if (!myInviteCode.value) {
+    ElMessage.warning('请先生成邀请码')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(myInviteCode.value)
+    ElMessage.success('邀请码已复制')
+  } catch (e) {
+    ElMessage.error('复制失败,请手动复制')
+  }
+}
+
+const generateInviteCode = async () => {
+  try {
+    const res = await axios.get('/api/invite/my-code')
+    if (res.data.code === 200) {
+      myInviteCode.value = res.data.data
+      ElMessage.success('邀请码生成成功')
+    }
+  } catch (e) {
+    ElNotification.error('生成邀请码失败')
+  }
+}
 
 const loadTransactions = async () => {
     try {
@@ -798,7 +953,8 @@ const menuTitle = {
     'counselors': '咨询师列表',
     'appointments': '我的预约',
     'wallet': '我的钱包',
-    'profile': '个人信息'
+    'profile': '个人信息',
+    'invite': '我的邀请'
 }
 
 const filteredCounselors = computed(() => {
@@ -854,6 +1010,9 @@ const loadData = async () => {
 
     // Load transactions for wallet
     loadTransactions()
+
+    // Load invite info
+    loadMyInviteInfo()
 
     const apptRes = await axios.get('/api/appointments/my')
     appointments.value = apptRes.data.data || []
@@ -2071,5 +2230,122 @@ onMounted(loadData)
   height: 100%;
   padding: 8px 20px;
   margin: 0;
+}
+
+/* Invite Section */
+.invite-card {
+  background: white;
+  border-radius: 20px;
+  padding: 25px;
+  height: 100%;
+}
+
+.invite-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.invite-icon {
+  font-size: 28px;
+  color: #4361ee;
+}
+
+.invite-card-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a202c;
+}
+
+.invite-code-box {
+  background: linear-gradient(135deg, #4361ee 0%, #4cc9f0 100%);
+  border-radius: 16px;
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.invite-code-text {
+  font-size: 32px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: 6px;
+  display: block;
+  margin-bottom: 20px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.invite-code-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.invite-code-actions :deep(.el-button) {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+}
+
+.invite-code-actions :deep(.el-button:hover) {
+  background: rgba(255,255,255,0.3);
+  color: white;
+}
+
+.invite-tips {
+  margin-top: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.invite-tips h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4361ee;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.invite-tips p {
+  font-size: 13px;
+  color: #606266;
+  line-height: 2;
+  margin-bottom: 4px;
+}
+
+.invite-stats {
+  margin-bottom: 25px;
+}
+
+.invite-stats .stat-item {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+
+.invite-stats .stat-item.blue { border-top: 3px solid #4361ee; }
+.invite-stats .stat-item.green { border-top: 3px solid #48bb78; }
+.invite-stats .stat-item.orange { border-top: 3px solid #ed8936; }
+
+.invite-stats .stat-num {
+  font-size: 28px;
+  font-weight: 800;
+  color: #1a202c;
+  margin-bottom: 5px;
+}
+
+.invite-stats .stat-label {
+  font-size: 13px;
+  color: #718096;
+}
+
+.invite-list-box {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
 }
 </style>

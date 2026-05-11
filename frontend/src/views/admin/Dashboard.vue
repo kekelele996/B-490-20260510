@@ -28,6 +28,10 @@
           <el-icon><Wallet /></el-icon>
           <span>提现管理</span>
         </el-menu-item>
+        <el-menu-item index="settings">
+          <el-icon><Setting /></el-icon>
+          <span>系统设置</span>
+        </el-menu-item>
 
       </el-menu>
     </el-aside>
@@ -239,6 +243,36 @@
           </el-card>
         </div>
 
+        <!-- System Settings -->
+        <div v-if="activeMenu === 'settings'">
+          <el-card shadow="hover" class="section-card">
+            <div class="section-header">
+              <h3><el-icon><Setting /></el-icon> 系统设置</h3>
+            </div>
+            <el-alert title="配置项 invite_rebate_amount 用于控制老带新奖励金额,单位:元" type="info" :closable="false" style="margin-bottom: 20px;" />
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-card shadow="hover">
+                  <template #header>
+                    <div class="setting-card-header">
+                      <span>邀请返现金额</span>
+                      <el-tag type="warning" size="small">核心参数</el-tag>
+                    </div>
+                  </template>
+                  <el-form label-width="100px">
+                    <el-form-item label="返现金额">
+                      <el-input-number v-model="inviteRebateAmount" :min="0" :step="10" :precision="2" style="width: 100%" />
+                    </el-form-item>
+                    <el-form-item>
+                      <el-button type="primary" @click="saveInviteRebate" :icon="Check" :loading="savingSetting">保存设置</el-button>
+                    </el-form-item>
+                  </el-form>
+                </el-card>
+              </el-col>
+            </el-row>
+          </el-card>
+        </div>
+
       </el-main>
     </el-container>
     
@@ -395,7 +429,7 @@ import { formatDateTime } from '../../utils/format'
 import { 
     DataLine, User, Avatar, Calendar, Wallet,
     UserFilled, ArrowDown, Plus, Edit, Delete,
-    Check, Close, PieChart, Histogram
+    Check, Close, PieChart, Histogram, Setting
 } from '@element-plus/icons-vue'
 
 import { getAvatar } from '../../utils/avatar'
@@ -410,13 +444,17 @@ const menuTitle = {
     'overview': '系统概览',
     'users': '用户管理',
     'appointments': '预约管理',
-    'withdrawals': '提现管理'
+    'withdrawals': '提现管理',
+    'settings': '系统设置'
 }
 
 const users = ref([])
 const counselors = ref([])
 const appointments = ref([])
 const withdrawals = ref([])
+
+const inviteRebateAmount = ref(0)
+const savingSetting = ref(false)
 
 
 const userDialogVisible = ref(false)
@@ -632,12 +670,40 @@ const loadData = async () => {
     const wdRes = await axios.get('/api/withdrawals/admin/all')
     withdrawals.value = wdRes.data.data
     
+    loadSettings()
 
     if (activeMenu.value === 'overview') {
         nextTick(() => initCharts())
     }
   } catch (e) {
     ElNotification.error((e.response?.data?.message || '数据加载失败'))
+  }
+}
+
+const loadSettings = async () => {
+  try {
+    const res = await axios.get('/api/admin/settings')
+    const settings = res.data.data || []
+    const rebate = settings.find(s => s.settingKey === 'invite_rebate_amount')
+    if (rebate) {
+      inviteRebateAmount.value = parseFloat(rebate.settingValue) || 0
+    }
+  } catch (e) {}
+}
+
+const saveInviteRebate = async () => {
+  savingSetting.value = true
+  try {
+    await axios.post('/api/admin/settings', {
+      settingKey: 'invite_rebate_amount',
+      settingValue: String(inviteRebateAmount.value),
+      description: '老带新邀请返现金额(元)'
+    })
+    ElMessage.success('设置已保存')
+  } catch (e) {
+    ElNotification.error((e.response?.data?.message || '保存失败'))
+  } finally {
+    savingSetting.value = false
   }
 }
 
@@ -1209,5 +1275,13 @@ onMounted(loadData)
 
 .table-actions :deep(.el-button) {
   margin-left: 0 !important;
+}
+
+.setting-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  color: #2d3748;
 }
 </style>

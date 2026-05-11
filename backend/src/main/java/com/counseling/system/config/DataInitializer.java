@@ -2,6 +2,7 @@ package com.counseling.system.config;
 
 import com.counseling.system.entity.*;
 import com.counseling.system.repository.*;
+import com.counseling.system.service.InviteService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,13 @@ public class DataInitializer implements CommandLineRunner {
     private WithdrawalRecordRepository withdrawalRecordRepository;
 
     @Autowired
+    private SystemSettingRepository systemSettingRepository;
+
+    @Autowired
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private InviteService inviteService;
 
     @Override
 
@@ -45,8 +52,9 @@ public class DataInitializer implements CommandLineRunner {
         admin.setNickname("System Admin");
         admin.setRole("ADMIN");
         admin.setPhone("13800000000");
-        admin.setEmail("admin@example.com");
+        admin.setEmail("a****@***********");
         admin.setGender("Male");
+        admin.setInviteCode(generateUniqueCode());
         userRepository.insert(admin);
 
         // 2. Create Counselor User
@@ -57,8 +65,9 @@ public class DataInitializer implements CommandLineRunner {
         counselorUser.setNickname("Dr. Zhang");
         counselorUser.setRole("COUNSELOR");
         counselorUser.setPhone("13900000000");
-        counselorUser.setEmail("zhang@example.com");
+        counselorUser.setEmail("z****@***********");
         counselorUser.setGender("Male");
+        counselorUser.setInviteCode(generateUniqueCode());
         userRepository.insert(counselorUser);
 
         // 3. Create Counselor Profile
@@ -80,8 +89,9 @@ public class DataInitializer implements CommandLineRunner {
         counselorUser2.setNickname("Li Psychologist");
         counselorUser2.setRole("COUNSELOR");
         counselorUser2.setPhone("13600000000");
-        counselorUser2.setEmail("li@example.com");
+        counselorUser2.setEmail("l*@***********");
         counselorUser2.setGender("Female");
+        counselorUser2.setInviteCode(generateUniqueCode());
         userRepository.insert(counselorUser2);
         
         Counselor counselor2 = new Counselor();
@@ -102,8 +112,9 @@ public class DataInitializer implements CommandLineRunner {
         normalUser.setNickname("Xiao Wang");
         normalUser.setRole("USER");
         normalUser.setPhone("13700000000");
-        normalUser.setEmail("wang@example.com");
+        normalUser.setEmail("w****@***********");
         normalUser.setGender("Female");
+        normalUser.setInviteCode(generateUniqueCode());
         userRepository.insert(normalUser);
 
         // Add another user for data richness
@@ -116,6 +127,7 @@ public class DataInitializer implements CommandLineRunner {
         user2.setPhone("13500000000");
         user2.setEmail("li_user@example.com");
         user2.setGender("Male");
+        user2.setInviteCode(generateUniqueCode());
         userRepository.insert(user2);
 
         // 6. Create Appointments
@@ -150,7 +162,25 @@ public class DataInitializer implements CommandLineRunner {
         withdrawal.setRequestTime(LocalDateTime.now().minusHours(2));
         withdrawal.setStatus("PENDING");
         withdrawalRecordRepository.insert(withdrawal);
-        
+
+        // 8. Create System Settings
+        SystemSetting rebateSetting = new SystemSetting();
+        rebateSetting.setSettingKey("invite_rebate_amount");
+        rebateSetting.setSettingValue("50.0");
+        rebateSetting.setDescription("邀请返现金额(元)");
+        systemSettingRepository.insert(rebateSetting);
+
         log.info("Dummy data initialized.");
+    }
+
+    private String generateUniqueCode() {
+        String code;
+        int maxAttempts = 10;
+        int attempts = 0;
+        do {
+            code = inviteService.generateInviteCode();
+            attempts++;
+        } while (userRepository.findByInviteCode(code).isPresent() && attempts < maxAttempts);
+        return code;
     }
 }
