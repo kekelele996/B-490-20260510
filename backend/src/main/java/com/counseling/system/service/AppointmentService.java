@@ -32,6 +32,9 @@ public class AppointmentService extends ServiceImpl<AppointmentRepository, Appoi
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private IReferralService referralService;
+
     public List<Appointment> getAllAppointments() {
         List<Appointment> appointments = list();
         for (Appointment app : appointments) {
@@ -205,6 +208,7 @@ public class AppointmentService extends ServiceImpl<AppointmentRepository, Appoi
                     "APPOINTMENT_STATUS",
                     appointment.getId()
                 );
+                referralService.processReferralReward(appointment.getId(), appointment.getUserId());
             }
         } else if ("REJECTED".equals(status) && appointment.getUserId() != null) {
              notificationService.createNotification(

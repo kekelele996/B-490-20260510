@@ -9,7 +9,10 @@ CREATE TABLE IF NOT EXISTS users (
     birthday DATE,
     avatar VARCHAR(255),
     role VARCHAR(20) DEFAULT 'USER',
-    balance DOUBLE DEFAULT 0.0
+    balance DOUBLE DEFAULT 0.0,
+    invite_code VARCHAR(32) UNIQUE,
+    inviter_id BIGINT,
+    FOREIGN KEY (inviter_id) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS counselors (
@@ -94,4 +97,18 @@ CREATE TABLE IF NOT EXISTS transactions (
     create_time DATETIME NOT NULL,
     description VARCHAR(255),
     FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS referral_records (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    inviter_id BIGINT NOT NULL,
+    invitee_id BIGINT NOT NULL,
+    appointment_id BIGINT,
+    reward_amount DOUBLE DEFAULT 0.0,
+    status VARCHAR(20) DEFAULT 'PENDING',
+    create_time DATETIME NOT NULL,
+    complete_time DATETIME,
+    FOREIGN KEY (inviter_id) REFERENCES users(id),
+    FOREIGN KEY (invitee_id) REFERENCES users(id),
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id)
 );
