@@ -28,6 +28,9 @@ public class DataInitializer implements CommandLineRunner {
     private WithdrawalRecordRepository withdrawalRecordRepository;
 
     @Autowired
+    private SystemSettingRepository systemSettingRepository;
+
+    @Autowired
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Override
@@ -151,6 +154,12 @@ public class DataInitializer implements CommandLineRunner {
         withdrawal.setStatus("PENDING");
         withdrawalRecordRepository.insert(withdrawal);
         
+        SystemSetting referralReward = new SystemSetting();
+        referralReward.setSettingKey("referral_reward_amount");
+        referralReward.setSettingValue("10.0");
+        referralReward.setDescription("老带新邀请返现金额");
+        systemSettingRepository.insert(referralReward);
+
         log.info("Dummy data initialized.");
     }
 }

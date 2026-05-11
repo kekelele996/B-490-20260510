@@ -28,6 +28,10 @@
           <el-icon><Wallet /></el-icon>
           <span>我的钱包</span>
         </el-menu-item>
+        <el-menu-item index="referral">
+          <el-icon><Promotion /></el-icon>
+          <span>邀请有礼</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     
@@ -385,8 +389,8 @@
                    </el-table-column align="center">
                    <el-table-column align="center" prop="type" label="类型" width="120">
                        <template #default="scope">
-                           <el-tag :type="scope.row.type === 'TOPUP' ? 'success' : (scope.row.type === 'REFUND' ? 'warning' : 'danger')">
-                               {{ scope.row.type === 'TOPUP' ? '充值' : (scope.row.type === 'REFUND' ? '退款' : '消费') }}
+                           <el-tag :type="scope.row.type === 'TOPUP' ? 'success' : (scope.row.type === 'REFUND' ? 'warning' : (scope.row.type === 'REFERRAL_REWARD' ? '' : 'danger'))">
+                               {{ scope.row.type === 'TOPUP' ? '充值' : (scope.row.type === 'REFUND' ? '退款' : (scope.row.type === 'REFERRAL_REWARD' ? '邀请返现' : '消费')) }}
                            </el-tag>
                        </template>
                    </el-table-column align="center">
@@ -407,6 +411,61 @@
                    </el-table-column align="center">
                </el-table>
              </div>
+          </el-card>
+        </div>
+
+        <!-- Referral -->
+        <div v-if="activeTab === 'referral'">
+          <el-card shadow="hover" class="section-card">
+            <template #header>
+              <div class="section-header">
+                <h3><el-icon><Promotion /></el-icon> 邀请有礼</h3>
+              </div>
+            </template>
+            <div class="referral-box">
+              <div class="invite-code-card">
+                <div class="invite-code-title">我的邀请码</div>
+                <div class="invite-code-value">{{ myInviteCode || '加载中...' }}</div>
+                <div class="invite-code-actions">
+                  <el-button type="primary" @click="copyInviteCode" :icon="Promotion">复制邀请码</el-button>
+                </div>
+                <div class="invite-code-tip">
+                  分享邀请码给好友，好友注册后完成首单付费预约，您即可获得 <span class="reward-highlight">¥{{ referralRewardAmount }}</span> 返现奖励
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 30px;">
+              <div class="section-header">
+                <h4><el-icon><List /></el-icon> 邀请记录</h4>
+              </div>
+              <el-table :data="referralRecords" stripe style="width: 100%">
+                <el-table-column align="center" prop="inviteeId" label="被邀请人ID" width="120" />
+                <el-table-column align="center" prop="rewardAmount" label="奖励金额" width="120">
+                  <template #default="scope">
+                    <span style="color: green; font-weight: bold;">¥{{ scope.row.rewardAmount }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column align="center" prop="status" label="状态" width="120">
+                  <template #default="scope">
+                    <el-tag :type="scope.row.status === 'COMPLETED' ? 'success' : (scope.row.status === 'PENDING' ? 'warning' : 'info')" effect="plain">
+                      {{ scope.row.status === 'COMPLETED' ? '已到账' : (scope.row.status === 'PENDING' ? '待完成' : '已取消') }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column align="center" prop="createTime" label="邀请时间" min-width="180">
+                  <template #default="scope">
+                    {{ formatDateTime(scope.row.createTime) }}
+                  </template>
+                </el-table-column>
+                <el-table-column align="center" prop="completeTime" label="完成时间" min-width="180">
+                  <template #default="scope">
+                    {{ scope.row.completeTime ? formatDateTime(scope.row.completeTime) : '-' }}
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-if="referralRecords.length === 0" description="暂无邀请记录" />
+            </div>
           </el-card>
         </div>
 
@@ -681,6 +740,34 @@ const topUpAmount = ref(100)
 const topUpLoading = ref(false)
 const transactions = ref([])
 
+const myInviteCode = ref('')
+const referralRecords = ref([])
+const referralRewardAmount = ref(0)
+
+const loadReferralData = async () => {
+    try {
+        const [codeRes, recordsRes, rewardRes] = await Promise.all([
+            axios.get('/api/referral/invite-code'),
+            axios.get('/api/referral/records'),
+            axios.get('/api/referral/reward-amount')
+        ])
+        if (codeRes.data.code === 200) myInviteCode.value = codeRes.data.data.inviteCode
+        if (recordsRes.data.code === 200) referralRecords.value = recordsRes.data.data
+        if (rewardRes.data.code === 200) referralRewardAmount.value = rewardRes.data.data.rewardAmount
+    } catch (e) {
+        ElNotification.error('邀请数据加载失败')
+    }
+}
+
+const copyInviteCode = () => {
+    if (!myInviteCode.value) return
+    navigator.clipboard.writeText(myInviteCode.value).then(() => {
+        ElMessage.success('邀请码已复制到剪贴板')
+    }).catch(() => {
+        ElMessage.error('复制失败，请手动复制')
+    })
+}
+
 const loadTransactions = async () => {
     try {
         const res = await axios.get('/api/wallet/transactions')
@@ -798,7 +885,8 @@ const menuTitle = {
     'counselors': '咨询师列表',
     'appointments': '我的预约',
     'wallet': '我的钱包',
-    'profile': '个人信息'
+    'profile': '个人信息',
+    'referral': '邀请有礼'
 }
 
 const filteredCounselors = computed(() => {
@@ -860,6 +948,7 @@ const loadData = async () => {
     
     initWebSocket()
     loadNotifications()
+    loadReferralData()
   } catch (e) {
     ElNotification.error((e.response?.data?.message || '页面数据加载失败'))
   }
@@ -2071,5 +2160,51 @@ onMounted(loadData)
   height: 100%;
   padding: 8px 20px;
   margin: 0;
+}
+
+.referral-box {
+  display: flex;
+  justify-content: center;
+}
+
+.invite-code-card {
+  background: linear-gradient(135deg, #4361ee 0%, #4cc9f0 100%);
+  border-radius: 20px;
+  padding: 40px;
+  color: white;
+  text-align: center;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 10px 20px rgba(67, 97, 238, 0.3);
+}
+
+.invite-code-title {
+  font-size: 16px;
+  opacity: 0.9;
+  margin-bottom: 15px;
+}
+
+.invite-code-value {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  margin-bottom: 25px;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.invite-code-actions {
+  margin-bottom: 20px;
+}
+
+.invite-code-tip {
+  font-size: 13px;
+  opacity: 0.85;
+  line-height: 1.6;
+}
+
+.reward-highlight {
+  font-weight: 800;
+  font-size: 16px;
+  color: #ffd700;
 }
 </style>

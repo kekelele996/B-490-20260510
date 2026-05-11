@@ -28,6 +28,10 @@
           <el-icon><Wallet /></el-icon>
           <span>提现管理</span>
         </el-menu-item>
+        <el-menu-item index="settings">
+          <el-icon><Setting /></el-icon>
+          <span>系统设置</span>
+        </el-menu-item>
 
       </el-menu>
     </el-aside>
@@ -239,6 +243,35 @@
           </el-card>
         </div>
 
+        <!-- Settings Management -->
+        <div v-if="activeMenu === 'settings'">
+          <el-card shadow="hover" class="section-card">
+            <div class="section-header">
+              <h3><el-icon><Setting /></el-icon> 系统设置</h3>
+            </div>
+
+            <div class="settings-grid">
+              <div class="setting-item" v-for="s in settings" :key="s.id">
+                <div class="setting-key">{{ s.settingKey }}</div>
+                <div class="setting-desc">{{ s.description }}</div>
+                <div class="setting-edit">
+                  <el-input-number
+                    v-if="s.settingKey === 'referral_reward_amount'"
+                    v-model="s.settingValue"
+                    :min="0"
+                    :precision="2"
+                    :step="1"
+                    style="width: 180px"
+                  />
+                  <el-input v-else v-model="s.settingValue" style="width: 180px" />
+                  <el-button type="primary" size="small" @click="saveSetting(s)" style="margin-left: 12px">保存</el-button>
+                </div>
+              </div>
+            </div>
+            <el-empty v-if="settings.length === 0" description="暂无系统设置" />
+          </el-card>
+        </div>
+
       </el-main>
     </el-container>
     
@@ -393,7 +426,7 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { formatDateTime } from '../../utils/format'
 import { 
-    DataLine, User, Avatar, Calendar, Wallet,
+    DataLine, User, Avatar, Calendar, Wallet, Setting,
     UserFilled, ArrowDown, Plus, Edit, Delete,
     Check, Close, PieChart, Histogram
 } from '@element-plus/icons-vue'
@@ -410,13 +443,15 @@ const menuTitle = {
     'overview': '系统概览',
     'users': '用户管理',
     'appointments': '预约管理',
-    'withdrawals': '提现管理'
+    'withdrawals': '提现管理',
+    'settings': '系统设置'
 }
 
 const users = ref([])
 const counselors = ref([])
 const appointments = ref([])
 const withdrawals = ref([])
+const settings = ref([])
 
 
 const userDialogVisible = ref(false)
@@ -631,7 +666,9 @@ const loadData = async () => {
 
     const wdRes = await axios.get('/api/withdrawals/admin/all')
     withdrawals.value = wdRes.data.data
-    
+
+    const stRes = await axios.get('/api/admin/settings')
+    settings.value = (stRes.data.data || []).map(s => ({ ...s, settingValue: s.settingKey === 'referral_reward_amount' ? Number(s.settingValue) : s.settingValue }))
 
     if (activeMenu.value === 'overview') {
         nextTick(() => initCharts())
@@ -639,6 +676,15 @@ const loadData = async () => {
   } catch (e) {
     ElNotification.error((e.response?.data?.message || '数据加载失败'))
   }
+}
+
+const saveSetting = async (s) => {
+    try {
+        await axios.post('/api/admin/settings', { settingKey: s.settingKey, settingValue: String(s.settingValue), description: s.description })
+        ElMessage.success('设置已保存')
+    } catch (e) {
+        ElNotification.error((e.response?.data?.message || '保存失败'))
+    }
 }
 
 const initCharts = () => {
@@ -1209,5 +1255,35 @@ onMounted(loadData)
 
 .table-actions :deep(.el-button) {
   margin-left: 0 !important;
+}
+
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.setting-item {
+  background: #f8f9fa;
+  border-radius: 16px;
+  padding: 20px 24px;
+}
+
+.setting-key {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a202c;
+  margin-bottom: 4px;
+}
+
+.setting-desc {
+  font-size: 13px;
+  color: #718096;
+  margin-bottom: 14px;
+}
+
+.setting-edit {
+  display: flex;
+  align-items: center;
 }
 </style>
