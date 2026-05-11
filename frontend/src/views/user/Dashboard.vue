@@ -28,6 +28,10 @@
           <el-icon><Wallet /></el-icon>
           <span>我的钱包</span>
         </el-menu-item>
+        <el-menu-item index="invite">
+          <el-icon><Share /></el-icon>
+          <span>邀请好友</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     
@@ -410,7 +414,112 @@
           </el-card>
         </div>
 
+        <!-- Invite Friends -->
+        <div v-if="activeTab === 'invite'">
+          <el-card shadow="hover" class="invite-card">
+            <template #header>
+              <div class="section-header">
+                <h3><el-icon><Share /></el-icon> 邀请好友</h3>
+              </div>
+            </template>
+            
+            <div class="invite-banner">
+              <div class="invite-banner-content">
+                <div class="banner-icon-box">
+                  <el-icon :size="48"><Gift /></el-icon>
+                </div>
+                <div class="banner-text">
+                  <h2>邀请好友，双方受益</h2>
+                  <p>好友完成首次咨询后，您将获得现金奖励</p>
+                </div>
+              </div>
+            </div>
 
+            <div class="invite-code-section">
+              <div class="code-display-box">
+                <div class="code-label">我的邀请码</div>
+                <div class="code-value">{{ inviteCode || '加载中...' }}</div>
+                <div class="code-actions">
+                  <el-button type="primary" @click="copyInviteCode" :icon="DocumentCopy" size="large">
+                    复制邀请码
+                  </el-button>
+                </div>
+              </div>
+            </div>
+
+            <div class="invite-stats">
+              <div class="stat-item">
+                <div class="stat-icon blue">
+                  <el-icon><User /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value">{{ inviteList.length }}</div>
+                  <div class="stat-label">已邀请好友</div>
+                </div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-icon green">
+                  <el-icon><Check /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value">{{ completedInvites }}</div>
+                  <div class="stat-label">完成首单</div>
+                </div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-icon orange">
+                  <el-icon><Wallet /></el-icon>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-value">¥{{ totalReward }}</div>
+                  <div class="stat-label">累计奖励</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="invite-list-section">
+              <div class="section-header">
+                <h4><el-icon><List /></el-icon> 邀请记录</h4>
+              </div>
+              <el-table :data="inviteList" stripe style="width: 100%" class="invite-table">
+                <el-table-column align="center" label="好友昵称" min-width="150">
+                  <template #default="scope">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <el-avatar :size="32" :src="getAvatar(scope.row.invitee?.avatar)" />
+                      <span>{{ scope.row.invitee?.nickname || '匿名用户' }}</span>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column align="center" prop="createTime" label="注册时间" width="180">
+                  <template #default="scope">
+                    {{ formatDateTime(scope.row.createTime) }}
+                  </template>
+                </el-table-column>
+                <el-table-column align="center" label="首单状态" width="120">
+                  <template #default="scope">
+                    <el-tag :type="scope.row.rewardGiven ? 'success' : 'info'" effect="plain">
+                      {{ scope.row.rewardGiven ? '已完成' : '待完成' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column align="center" label="奖励金额" width="120">
+                  <template #default="scope">
+                    <span v-if="scope.row.rewardGiven" class="reward-amount">
+                      +¥{{ scope.row.rewardAmount || 0 }}
+                    </span>
+                    <span v-else class="reward-pending">待发放</span>
+                  </template>
+                </el-table-column>
+                <el-table-column align="center" label="奖励时间" width="180">
+                  <template #default="scope">
+                    {{ scope.row.rewardTime ? formatDateTime(scope.row.rewardTime) : '-' }}
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-if="inviteList.length === 0" description="暂无邀请记录，快去邀请好友吧" />
+            </div>
+          </el-card>
+        </div>
 
       </el-main>
     </el-container>
@@ -629,7 +738,7 @@ import {
   List, Edit, Promotion, Star, View, CircleClose, 
   ChatDotRound, Wallet, Check, Warning, ChatLineRound, Position,
   Camera, Postcard, Phone, Message, Male, Right, Monitor,
-  Bell, InfoFilled
+  Bell, InfoFilled, Share, DocumentCopy, Ticket, Gift
 } from '@element-plus/icons-vue'
 
 import { getAvatar } from '../../utils/avatar'
@@ -680,6 +789,45 @@ const topUpDialogVisible = ref(false)
 const topUpAmount = ref(100)
 const topUpLoading = ref(false)
 const transactions = ref([])
+
+// Invite
+const inviteCode = ref('')
+const inviteList = ref([])
+
+const completedInvites = computed(() => {
+    return inviteList.value.filter(i => i.rewardGiven).length
+})
+
+const totalReward = computed(() => {
+    return inviteList.value
+        .filter(i => i.rewardGiven && i.rewardAmount)
+        .reduce((sum, i) => sum + i.rewardAmount, 0)
+})
+
+const loadInviteData = async () => {
+    try {
+        const codeRes = await axios.get('/api/invite/my-code')
+        if (codeRes.data.code === 200) {
+            inviteCode.value = codeRes.data.data.inviteCode
+        }
+        const listRes = await axios.get('/api/invite/my-invites')
+        if (listRes.data.code === 200) {
+            inviteList.value = listRes.data.data
+        }
+    } catch (e) {
+        console.error('加载邀请数据失败', e)
+    }
+}
+
+const copyInviteCode = async () => {
+    if (!inviteCode.value) return
+    try {
+        await navigator.clipboard.writeText(inviteCode.value)
+        ElMessage.success('邀请码已复制到剪贴板')
+    } catch (e) {
+        ElMessage.error('复制失败，请手动复制')
+    }
+}
 
 const loadTransactions = async () => {
     try {
@@ -798,7 +946,8 @@ const menuTitle = {
     'counselors': '咨询师列表',
     'appointments': '我的预约',
     'wallet': '我的钱包',
-    'profile': '个人信息'
+    'profile': '个人信息',
+    'invite': '邀请好友'
 }
 
 const filteredCounselors = computed(() => {
@@ -857,6 +1006,9 @@ const loadData = async () => {
 
     const apptRes = await axios.get('/api/appointments/my')
     appointments.value = apptRes.data.data || []
+    
+    // Load invite data
+    loadInviteData()
     
     initWebSocket()
     loadNotifications()
@@ -2070,6 +2222,216 @@ onMounted(loadData)
   border-radius: 0 8px 8px 0;
   height: 100%;
   padding: 8px 20px;
+}
+
+/* Invite Section Styles */
+.invite-card {
+  border-radius: 24px;
+  border: none;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.06);
+}
+
+.invite-banner {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  padding: 40px;
+  margin-bottom: 30px;
+  position: relative;
+  overflow: hidden;
+}
+
+.invite-banner::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 300px;
+  height: 300px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 50%;
+}
+
+.invite-banner::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  right: 20%;
+  width: 200px;
+  height: 200px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 50%;
+}
+
+.invite-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  position: relative;
+  z-index: 1;
+}
+
+.banner-icon-box {
+  width: 80px;
+  height: 80px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  backdrop-filter: blur(10px);
+}
+
+.banner-text h2 {
+  color: white;
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 8px 0;
+}
+
+.banner-text p {
+  color: rgba(255,255,255,0.85);
+  font-size: 16px;
+  margin: 0;
+}
+
+.invite-code-section {
+  margin-bottom: 30px;
+}
+
+.code-display-box {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+  border-radius: 20px;
+  padding: 40px;
+  text-align: center;
+  border: 2px dashed #cbd5e1;
+}
+
+.code-label {
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.code-value {
+  font-size: 42px;
+  font-weight: 900;
+  color: #4361ee;
+  letter-spacing: 8px;
+  margin-bottom: 25px;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 2px 10px rgba(67, 97, 238, 0.2);
+}
+
+.code-actions .el-button {
+  height: 50px;
+  padding: 0 40px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 14px;
+}
+
+.invite-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.stat-item {
+  background: white;
+  border-radius: 20px;
+  padding: 25px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.03);
+}
+
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-icon.blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.stat-icon.green {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: white;
+}
+
+.stat-icon.orange {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.invite-list-section {
+  margin-top: 30px;
+}
+
+.invite-list-section .section-header h4 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #2d3748;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px 0;
+}
+
+.invite-table {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.reward-amount {
+  color: #10b981;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.reward-pending {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-header h4 {
   margin: 0;
 }
 </style>
