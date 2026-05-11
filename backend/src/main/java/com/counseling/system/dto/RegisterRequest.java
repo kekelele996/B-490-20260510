@@ -30,4 +30,5 @@ public class RegisterRequest {
 
     private String gender;
     private LocalDate birthday;
+    private String inviteCode;
 }

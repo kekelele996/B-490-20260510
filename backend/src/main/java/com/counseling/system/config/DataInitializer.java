@@ -28,6 +28,9 @@ public class DataInitializer implements CommandLineRunner {
     private WithdrawalRecordRepository withdrawalRecordRepository;
 
     @Autowired
+    private SystemSettingRepository systemSettingRepository;
+
+    @Autowired
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Override
@@ -150,6 +153,25 @@ public class DataInitializer implements CommandLineRunner {
         withdrawal.setRequestTime(LocalDateTime.now().minusHours(2));
         withdrawal.setStatus("PENDING");
         withdrawalRecordRepository.insert(withdrawal);
+
+        // 8. Generate invite codes for existing users
+        admin.setInviteCode("ADMIN001");
+        userRepository.updateById(admin);
+        counselorUser.setInviteCode("CNLR0001");
+        userRepository.updateById(counselorUser);
+        counselorUser2.setInviteCode("CNLR0002");
+        userRepository.updateById(counselorUser2);
+        normalUser.setInviteCode("USER0001");
+        userRepository.updateById(normalUser);
+        user2.setInviteCode("USER0002");
+        userRepository.updateById(user2);
+
+        // 9. Initialize system settings
+        SystemSetting inviteReward = new SystemSetting();
+        inviteReward.setSettingKey("invite_reward_amount");
+        inviteReward.setSettingValue("50.0");
+        inviteReward.setDescription("邀请好友首单完成后奖励金额（元）");
+        systemSettingRepository.insert(inviteReward);
         
         log.info("Dummy data initialized.");
     }

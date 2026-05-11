@@ -9,10 +9,13 @@ import com.counseling.system.dto.LoginRequest;
 import com.counseling.system.dto.RegisterRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.Random;
 
 @Service
+@Transactional
 public class UserServiceImpl extends ServiceImpl<UserRepository, User> implements IUserService {
 
     @Autowired
@@ -20,6 +23,12 @@ public class UserServiceImpl extends ServiceImpl<UserRepository, User> implement
 
     @Autowired
     private CounselorRepository counselorRepository;
+
+    @Autowired
+    private IInviteService inviteService;
+
+    private static final String INVITE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int INVITE_CODE_LENGTH = 8;
 
     @Override
     public User login(LoginRequest request) {
@@ -49,8 +58,48 @@ public class UserServiceImpl extends ServiceImpl<UserRepository, User> implement
         user.setGender(request.getGender());
         user.setBirthday(request.getBirthday());
         user.setRole("USER");
+        user.setInviteCode(generateUniqueInviteCode());
+        user.setFirstOrderCompleted(false);
         save(user);
+
+        if (request.getInviteCode() != null && !request.getInviteCode().trim().isEmpty()) {
+            inviteService.bindInviteRelation(user.getId(), request.getInviteCode());
+        }
+
         return user;
+    }
+
+    @Override
+    public String getOrCreateInviteCode(Long userId) {
+        User user = getById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        if (user.getInviteCode() == null || user.getInviteCode().isEmpty()) {
+            user.setInviteCode(generateUniqueInviteCode());
+            updateById(user);
+        }
+        return user.getInviteCode();
+    }
+
+    private String generateUniqueInviteCode() {
+        Random random = new Random();
+        String code;
+        int maxAttempts = 10;
+        for (int i = 0; i < maxAttempts; i++) {
+            StringBuilder sb = new StringBuilder();
+            for (int j = 0; j < INVITE_CODE_LENGTH; j++) {
+                sb.append(INVITE_CODE_CHARS.charAt(random.nextInt(INVITE_CODE_CHARS.length())));
+            }
+            code = sb.toString();
+            User existing = baseMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<User>()
+                    .eq(User::getInviteCode, code));
+            if (existing == null) {
+                return code;
+            }
+        }
+        throw new RuntimeException("生成邀请码失败，请稍后重试");
     }
 
     @Override

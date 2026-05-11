@@ -24,4 +24,7 @@ public class User {
     private String avatar;
     private String role; // USER, COUNSELOR, ADMIN
     private Double balance = 0.0;
+    private String inviteCode;
+    private Long inviterId;
+    private Boolean firstOrderCompleted = false;
 }

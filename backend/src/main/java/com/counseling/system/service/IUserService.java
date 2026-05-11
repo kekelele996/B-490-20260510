@@ -10,4 +10,5 @@ public interface IUserService extends IService<User> {
     User register(RegisterRequest request);
     User getUserById(Long id);
     User updateUser(Long id, User userDetails);
+    String getOrCreateInviteCode(Long userId);
 }
